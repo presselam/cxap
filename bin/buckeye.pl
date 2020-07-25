@@ -8,11 +8,12 @@ use DateTime;
 use Getopt::Long;
 use JSON;
 use LWP;
+use Text::FIGlet;
 
 use Toolkit;
 
-my %opts = ( cacheDir => '.', );
-if ( !GetOptions( \%opts, 'commit' ) ) {
+my %opts = (cacheDir => '.',);
+if(!GetOptions(\%opts, 'andrew', 'sarah', 'verbose', 'commit')) {
   die("Invalid incantation\n");
 }
 
@@ -21,69 +22,90 @@ exit(0);
 
 sub main {
 
-  my $obj = getResultsPage('7232182');
-#  my $obj = getResultsPage('28538797');
+  my $font = Text::FIGlet->new(
+    -d => '/usr/local/Cellar/figlet/2.2.5/share/figlet/fonts',
+    -f => 'standard'
+  );
 
-  printObject($obj) if ( $opts{'verbose'} );
+  if($opts{'sarah'}) {
+    my $out = $font->figify(-A => "Sarah");
+    message(green($out));
+    reportUser('7232182');
+  }
 
-  my $eventId = shift @{ $obj->{'virtualEventIds'} };
+  if($opts{'andrew'}) {
+    my $out = $font->figify(-A => "Andrew");
+    message(green($out));
+    reportUser('28538797');
+  }
 
-  my ( $yr, $mn, $dy )
-      = unpack( 'A4xA2xA2', $obj->{'eventStartDates'}{$eventId} );
-  my $dti = DateTime->new( year => $yr, month => $mn, day => $dy );
+}
 
-  ( $yr, $mn, $dy ) = unpack( 'A4xA2xA2', $obj->{'eventEndDates'}{$eventId} );
-  my $dtf = DateTime->new( year => $yr, month => $mn, day => $dy );
+sub reportUser {
+  my ($userId) = @_;
+
+  my $obj = getResultsPage($userId);
+
+  printObject($obj) if($opts{'verbose'});
+
+  my $eventId = shift @{$obj->{'virtualEventIds'}};
+
+  my ($yr, $mn, $dy) =
+    unpack('A4xA2xA2', $obj->{'eventStartDates'}{$eventId});
+  my $dti = DateTime->new(year => $yr, month => $mn, day => $dy);
+
+  ($yr, $mn, $dy) = unpack('A4xA2xA2', $obj->{'eventEndDates'}{$eventId});
+  my $dtf = DateTime->new(year => $yr, month => $mn, day => $dy);
 
   my $today = DateTime->now();
 
   my $total    = $dtf->delta_days($dti)->delta_days();
   my $progress = $dti->delta_days($today)->delta_days();
   my $remain   = $dtf->delta_days($today)->delta_days() - 1;
-  my $pctTime  = sprintf( '%.1f', 100 * ( $progress / $total ) );
+  my $pctTime  = sprintf('%.1f', 100 * ($progress / $total));
 
-  my $results = shift @{ $obj->{'results'} };
+  my $results = shift @{$obj->{'results'}};
   my $goal    = $results->{'result_tally_goal'};
   $goal =~ s/[^0-9.]//go;
   my $distance = $results->{'result_tally_value'};
   $distance =~ s/[^0-9.]//go;
   my $togo = $goal - $distance;
 
-  my $milesPerDay = sprintf( '%.1f', $togo / $remain );
-  my $pctMiles = sprintf( '%.1f', 100 * ( $distance / $goal ) );
+  my $milesPerDay = sprintf('%.1f', $togo / $remain);
+  my $pctMiles = sprintf('%.1f', 100 * ($distance / $goal));
 
   my $wide = length($distance);
   message(
     "Event: " . $dti->date() . " through " . $dtf->date(),
     sprintf(
-      "  Progress: %".$wide."s of %7s days  (%.1f%%)",
+      "  Progress: %" . $wide . "s of %7s days  (%.1f%%)",
       $progress, $total, $pctTime
     ),
     sprintf(
-      "  Distance: %".$wide."s of %7s miles (%.1f%%)",
+      "  Distance: %" . $wide . "s of %7s miles (%.1f%%)",
       $distance, $goal, $pctMiles
     ),
   );
 
-  if ( $pctMiles < $pctTime ) {
+  if($pctMiles < $pctTime) {
     my $delta = $pctTime - $pctMiles;
-    my $miles = $goal * ( $delta / 100 );
+    my $miles = $goal * ($delta / 100);
 
-    message( red( sprintf( "Behind:  %3.1f miles (%.1f%%)", $miles, $delta ) ) );
+    message(red(sprintf("Behind:  %3.1f miles (%.1f%%)", $miles, $delta)));
   } else {
     my $delta = $pctMiles - $pctTime;
-    my $miles = $goal * ( $delta / 100 );
+    my $miles = $goal * ($delta / 100);
 
-    message( green( sprintf( "Ahead:  %3.1f miles(%.1f%%)", $miles, $delta ) ) );
-    message( green( "Ahead by " . ( $pctMiles - $pctTime ) . "%" ) );
+    message(green(sprintf("Ahead:  %3.1f miles(%.1f%%)", $miles, $delta)));
+    message(green("Ahead by " . ($pctMiles - $pctTime) . "%"));
   }
 
   $wide = length($togo);
   message(
     "To complete:",
-    sprintf("  Days:  %".$wide."d remaining", $remain),
-    sprintf("  Miles: %".$wide.".1f to go", $togo),
-    sprintf("  Rate:  %".$wide.".1f mpd", $milesPerDay),
+    sprintf("  Days:  %" . $wide . "d remaining", $remain),
+    sprintf("  Miles: %" . $wide . ".1f to go",   $togo),
+    sprintf("  Rate:  %" . $wide . ".1f mpd",     $milesPerDay),
   );
 }
 
@@ -92,35 +114,35 @@ sub getResultsPage {
 
   my $retval = undef;
   my $cache  = "$opts{'cacheDir'}/$userId.html";
-  if ( -f $cache ) {
-    open( my $fh, '<', $cache );
-    local $/ = undef;
-    $retval = <$fh>;
-    close($fh);
-  }
+  #  if ( -f $cache ) {
+  #    open( my $fh, '<', $cache );
+  #    local $/ = undef;
+  #    $retval = <$fh>;
+  #    close($fh);
+  #  }
 
-  if ( !defined($retval) ) {
+  if(!defined($retval)) {
 
-    my $ua = LWP::UserAgent->new( agent => 'presselam' );
-    my $url
-        = "https://runsignup.com/Race/Results/91138/LookupParticipant/LtYz?resultSetId=194836&userId=$userId";
-    $url
-        = "https://runsignup.com/Race/Results/91138/IndividualResult/LtYz?resultSetId=194836";
+    my $ua = LWP::UserAgent->new(agent => 'presselam');
+    my $url =
+"https://runsignup.com/Race/Results/91138/LookupParticipant/LtYz?resultSetId=194836&userId=$userId";
+    $url =
+"https://runsignup.com/Race/Results/91138/IndividualResult/LtYz?resultSetId=194836";
 
-    my $req = HTTP::Request->new( POST => $url );
-    $req->header( 'accept' => 'application/json' );
+    my $req = HTTP::Request->new(POST => $url);
+    $req->header('accept' => 'application/json');
     $req->header(
-      'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8' );
+      'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8');
     $req->content("userIdCsv=$userId");
 
     my $resp = $ua->request($req);
-    if ( $resp->is_success() ) {
+    if($resp->is_success()) {
       $retval = $resp->decoded_content();
-      open( my $fh, '>', $cache );
+      open(my $fh, '>', $cache);
       $fh->print($retval);
       close($fh);
     } else {
-      quick( error => $resp->status_line() );
+      quick(error => $resp->status_line());
     }
   }
 
