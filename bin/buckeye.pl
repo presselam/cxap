@@ -61,7 +61,7 @@ sub reportUser {
 
   my $total    = $dtf->delta_days($dti)->delta_days();
   my $progress = $dti->delta_days($today)->delta_days();
-  my $remain   = $dtf->delta_days($today)->delta_days() - 1;
+  my $remain   = $dtf->delta_days($today)->delta_days();
   my $pctTime  = sprintf('%.1f', 100 * ($progress / $total));
 
   my $results = shift @{$obj->{'results'}};
@@ -96,8 +96,7 @@ sub reportUser {
     my $delta = $pctMiles - $pctTime;
     my $miles = $goal * ($delta / 100);
 
-    message(green(sprintf("Ahead:  %3.1f miles(%.1f%%)", $miles, $delta)));
-    message(green("Ahead by " . ($pctMiles - $pctTime) . "%"));
+    message(green(sprintf("Ahead:  %3.1f miles (%.1f%%)", $miles, $delta)));
   }
 
   $wide = length($togo);
